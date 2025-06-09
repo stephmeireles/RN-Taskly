@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import useStyles from './style';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useTheme } from '../../pages/preferencesMenu/themeContext'; // Importe o useTheme
+import { useTheme } from '../../pages/preferencesMenu/themeContext'; 
 
 import LogoutConfirmationModal from '../../components/common/LogoutConfirmationModal';
 import ToggleBiometricsModal from '../../components/common/ToggleBiometricsModal';
@@ -14,13 +14,23 @@ import FingerprintIconDark from '../../assets/icons/menu/FingerprintSimple.png';
 import FingerprintIconLight from '../../assets/icons/menu/FingerprintSimpleLight.png';
 import LogoutIconDark from '../../assets/icons/menu/SignOut.png';
 import LogoutIconLight from '../../assets/icons/menu/SignOutLight.png';
-import ChevronRightIcon from '../../assets/icons/ChevronRight.png'; // Este parece ser o mesmo para ambos os temas
+import ChevronRightIcon from '../../assets/icons/ChevronRight.png';
 import DeleteAccIconDark from '../../assets/icons/menu/Trash.png';
 import DeleteAccIconLight from '../../assets/icons/TrashLight.png';
 import ProfileImage from '../../assets/imgs/avatar.png';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+    const getProfileImage = (pictureId: string | null): string => {
+  switch (pictureId) {
+    case 'avatar_1': return 'https://img-teskly.s3.us-east-2.amazonaws.com/img/Ellipse%201.png';
+    case 'avatar_2': return 'https://img-teskly.s3.us-east-2.amazonaws.com/img/Ellipse%202.png';
+    case 'avatar_3': return 'https://img-teskly.s3.us-east-2.amazonaws.com/img/Ellipse%203.png';
+    case 'avatar_4': return 'https://img-teskly.s3.us-east-2.amazonaws.com/img/Ellipse%204.png';
+    case 'avatar_5': return 'https://img-teskly.s3.us-east-2.amazonaws.com/img/Ellipse%205.png';
+    default: return Image.resolveAssetSource(require('../../assets/imgs/avatar.png')).uri;
+  }
+};
 const formatPhoneNumber = (phoneNumber: string) => {
   if (!phoneNumber) {
     return '';
@@ -35,16 +45,15 @@ const formatPhoneNumber = (phoneNumber: string) => {
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
-  const styles = useStyles(); // Use o hook para obter os estilos com o tema atual
-  const { currentThemeName } = useTheme(); // Acesse o nome do tema atual
-
+  const styles = useStyles(); 
+  const { currentThemeName } = useTheme(); 
   const [isLogoutConfirmationModalVisible, setIsLogoutConfirmationModalVisible] = useState(false);
   const [isBiometricModalVisible, setIsBiometricModalVisible] = useState(false);
   const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
   const [isAccountDeletionModalVisible, setIsAccountDeletionModalVisible] = useState(false);
-  const [usuario, setUsuario] = useState({ nome: '', email: '', numero: '' });
+  const [usuario, setUsuario] = useState({ nome: '', email: '', numero: '',picture:'' });
 
-  // Função auxiliar para determinar qual ícone usar
+
   const getIcon = (iconName: string) => {
     if (currentThemeName === 'dark') {
       switch (iconName) {
@@ -57,7 +66,7 @@ const ProfileScreen: React.FC = () => {
         case 'delete':
           return DeleteAccIconDark;
         default:
-          return null; // Ou um ícone padrão
+          return null;
       }
     } else {
       switch (iconName) {
@@ -70,7 +79,7 @@ const ProfileScreen: React.FC = () => {
         case 'delete':
           return DeleteAccIconLight;
         default:
-          return null; // Ou um ícone padrão
+          return null; 
       }
     }
   };
@@ -119,60 +128,96 @@ const ProfileScreen: React.FC = () => {
   const handleCloseDeleteAccountModal = () => setIsAccountDeletionModalVisible(false);
 
   const handleConfirmDeleteAccount = async () => {
-    try {
-      const emailLogado = await AsyncStorage.getItem("loggedUserEmail");
+  try {
+    const token = await AsyncStorage.getItem("authToken");
 
-      if (!emailLogado) {
-        console.warn("Nenhum usuário logado.");
-        Alert.alert("Erro", "Você não está logado.");
-        return;
-      }
-
-      const usuariosJson = await AsyncStorage.getItem("users");
-      const usuarios = usuariosJson ? JSON.parse(usuariosJson) : [];
-
-      const usuarioIndex = usuarios.findIndex((u) => u.email === emailLogado);
-      if (usuarioIndex === -1) {
-        console.warn("Usuário não encontrado.");
-        Alert.alert("Erro", "Usuário não encontrado.");
-        return;
-      }
-
-      usuarios.splice(usuarioIndex, 1);
-
-      await AsyncStorage.setItem("users", JSON.stringify(usuarios));
-
-      await AsyncStorage.removeItem("loggedUserEmail");
-      await AsyncStorage.removeItem("loggedUserNome");
-      await AsyncStorage.removeItem("loggedUserNumero");
-
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'SingIn' }], // Altere para o nome correto da tela de login
-      });
-      setIsAccountDeletionModalVisible(false);
-      Alert.alert("Conta excluída", "Sua conta foi excluída com sucesso.")
-
-    } catch (error) {
-      console.error("Erro ao excluir a conta:", error);
-      Alert.alert("Erro", "Ocorreu um erro ao excluir sua conta.");
+    if (!token) {
+      Alert.alert("Erro", "Você não está autenticado.");
+      return;
     }
-  };
+
+    const response = await fetch("http://15.228.158.2:3000/profile/delete-account", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      }
+    });
+
+    if (!response.ok) {
+      console.error("Erro ao deletar conta:", await response.text());
+      Alert.alert("Erro", "Não foi possível excluir sua conta.");
+      return;
+    }
+
+    await AsyncStorage.clear();
+
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'SingIn' }],
+    });
+
+    setIsAccountDeletionModalVisible(false);
+    Alert.alert("Conta excluída", "Sua conta foi excluída com sucesso.");
+
+  } catch (error) {
+    console.error("Erro ao excluir a conta:", error);
+    Alert.alert("Erro interno", "Não foi possível excluir sua conta.");
+  }
+};
+
 
   useFocusEffect(
-    useCallback(() => {
+    useCallback(() => {      
       const carregarUsuario = async () => {
-        const email = await AsyncStorage.getItem("loggedUserEmail");
-        const nome = await AsyncStorage.getItem("loggedUserNome");
-        const numero = await AsyncStorage.getItem("loggedUserNumero");
-        if (email || nome || numero) {
-          setUsuario({
-            nome: nome || '',
-            email: email || '',
-            numero: numero || '',
-          });
-        }
-      };
+      const token = await AsyncStorage.getItem("authToken");
+
+      if (!token) {
+        Alert.alert("Erro", "Usuário não autenticado.");
+        return;
+      }
+
+      try {
+  console.log("🧪 TOKEN LIDO DO STORAGE:", token);
+
+  if (!token) {
+    Alert.alert("Erro", "Você não está autenticado.");
+    return;
+  }
+
+  const response = await fetch("http://15.228.158.2:3000/profile", {
+  method: "GET",
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+});
+
+if (!response.ok) {
+  const text = await response.text();
+  console.error("Erro ao buscar perfil:", text);
+  Alert.alert("Erro", "Não foi possível carregar os dados.");
+  return;
+}
+
+const data = await response.json();
+
+// Verificação defensiva
+if (!data?.name || !data?.email || !data?.phone_number) {
+  console.error("Resposta inesperada do backend:", data);
+  Alert.alert("Erro", "Dados incompletos recebidos.");
+  return;
+}
+
+setUsuario({
+  nome: data.name,
+  email: data.email,
+  numero: data.phone_number,
+  picture: data.picture,
+});
+} catch (error) {
+  console.error("Erro ao buscar dados do usuário:", error);
+  Alert.alert("Erro interno", "Falha ao carregar dados.");
+}
+    };      
       carregarUsuario();
     }, [])
   );
@@ -187,7 +232,10 @@ const ProfileScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
-          <Image source={ProfileImage} style={styles.avatar} />
+          <Image
+            source={{ uri: getProfileImage(usuario.picture || '') }}
+            style={styles.avatar}
+          />
         </View>
         <Text style={styles.name}>{usuario.nome}</Text>
         <Text style={styles.email}>{usuario.email}</Text>
